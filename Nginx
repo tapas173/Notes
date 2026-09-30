@@ -1,0 +1,91 @@
+NGINX on GCP Architecture
+This setup illustrates a standard, secure production environment where an NGINX Reverse Proxy handles public internet traffic and routes it to backend applications residing safely within a private subnet.
+       [ Public Internet (HTTP/HTTPS: 80/443) ]
+                         │
+                         ▼
+        [ GCP Firewall / Cloud Armor ] 
+     (Allows Port 80/443 from anywhere)
+                         │
+                         ▼
+┌────────────────── GCP VPC ──────────────────────────┐
+│                                                     │
+│   ┌────────────── Public Subnet ────────────────┐   │
+│   │                                             │   │
+│   │   ┌─────────────────────────────────────┐   │   │
+│   │   │  Compute Engine VM: nginx-server    │   │   │
+│   │   │  • External Static IP assigned      │   │   │
+│   │   │  • NGINX acting as Reverse Proxy    │   │   │
+│   │   └──────────────────┬──────────────────┘   │   │
+│   │                      │                      │   │
+│   └──────────────────────┼──────────────────────┘   │
+│                          │ (Internal Routing)       │
+│                          ▼                          │
+│   ┌────────────── Private Subnet ───────────────┐   │
+│   │                                             │   │
+│   │   ┌─────────────────────────────────────┐   │   │
+│   │   │  Backend Service (App Instance)     │   │   │
+│   │   │  • Internal IP only (No Public IP)  │   │   │
+│   │   │  • Port e.g., 8080 (Node, Go, Java) │   │   │
+│   │   └─────────────────────────────────────┘   │   │
+│   └─────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+1. Key Concepts
+• NGINX: An open-source, high-performance web server that serves as a reverse proxy, load balancer, and HTTP cache. It runs on an asynchronous, event-driven architecture designed to handle thousands of concurrent connections with low memory usage.
+• GCP Compute Engine (GCE): Infrastructure-as-a-Service (IaaS) used to launch virtual machines (VMs) running Linux distributions (like Ubuntu or Debian) where NGINX is installed.
+• Security Best Practice: The backend application runs strictly on an internal IP address. NGINX sits in the public subnet, processes incoming requests, filters out malicious behavior, and forwards clean requests to the backend.
+2. Step-by-Step Deployment Guide
+Step A: Provisioning the VM via Google Cloud Console
+1. Go to the Google Cloud Console.
+2. Navigate to Compute Engine ➔ VM Instances and click Create Instance.
+3. Machine configuration: Choose a budget-friendly option for web hosting (e.g., e2-micro or e2-medium).
+4. Boot Disk: Choose a Linux OS distribution (e.g., Ubuntu 22.04 LTS).
+5. Networking & Firewall: Check the box to "Allow HTTP traffic" and "Allow HTTPS traffic". This creates automatic firewall rules to open ports 80 and 443.
+6. Click Create.
+Step B: Installation & Basic Setup
+SSH into your newly created VM instance using the in-browser terminal or the gcloud SDK. Run the following commands:
+bash
+# Update the package repository index
+sudo apt update -y
+
+# Install the NGINX web server
+sudo apt install nginx -y
+
+# Verify NGINX is running active (running)
+sudo systemctl status nginx
+Use code with caution.
+If your GCP Firewall rules are configured correctly, navigating to the instance's External IP address in a web browser will display the "Welcome to nginx" page.
+3. Essential NGINX Configurations
+NGINX operations are driven by directives housed in /etc/nginx/nginx.conf and modular server blocks located in /etc/nginx/sites-available/.
+Reverse Proxy Block Configuration
+To direct traffic from public port 80 to your internal application running on port 8080, edit your default configuration file (sudo nano /etc/nginx/sites-available/default):
+nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name your_domain.com www.your_domain.com;
+
+    location / {
+        # Pass the incoming public traffic to the internal app
+        proxy_pass http://localhost:8080/; 
+        
+        # Preserve original client headers for backend logging
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Serve static assets directly through NGINX for faster caching
+    location /static/ {
+        root /var/www/my-app/static;
+    }
+}
+Use code with caution.
+Apply and Test Configurations
+Always validate your syntax before restarting the server to prevent unexpected site downtime:
+bash
+# Test NGINX configuration syntax
+sudo nginx -t
+
+# Reload configuration seamlessly without dropping active connections
+sudo systemctl reload nginx
