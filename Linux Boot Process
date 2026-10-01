@@ -1,0 +1,446 @@
+Linux Boot Process
+
+The Linux boot process is the sequence of steps that takes a system from power-on to a login prompt/desktop.
+
+Boot Flow
+┌─────────────────────┐
+│     Power ON        │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ BIOS / UEFI         │
+│ POST + HW Init      │
+└──────────┬──────────┘
+           │
+           ▼
+┌──────────────────────────────┐
+│ Select Boot Device           │
+│                              │
+│ BIOS → MBR / Boot Sector     │
+│ UEFI → EFI System Partition  │
+└──────────┬───────────────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ GRUB Bootloader     │
+│ grub.cfg            │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────────────┐
+│ Linux Kernel + initramfs    │
+│ vmlinuz + initramfs         │
+└──────────┬──────────────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ systemd             │
+│ PID 1               │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ systemd Targets     │
+│ default.target      │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Start Services      │
+│ Network / SSH / etc │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Login Prompt / GUI  │
+└─────────────────────┘
+1. Power ON
+
+When you press the power button:
+
+CPU starts executing firmware instructions.
+The system firmware is either:
+BIOS — legacy firmware
+UEFI — modern firmware
+Hardware initialization begins.
+2. BIOS / UEFI and POST
+POST — Power-On Self-Test
+
+Firmware checks and initializes important hardware such as:
+
+CPU
+RAM
+Keyboard
+Storage devices
+Network/PCI devices
+Other required hardware
+
+You can think of this stage as:
+
+Power ON
+   ↓
+BIOS / UEFI
+   ↓
+POST
+   ↓
+Hardware Initialization
+BIOS vs UEFI
+BIOS	UEFI
+Legacy firmware	Modern firmware
+Commonly works with MBR	Commonly works with GPT
+Limited boot environment	More advanced boot environment
+Legacy boot process	EFI executable-based boot
+3. Boot Device Selection
+
+After hardware initialization, BIOS/UEFI determines where to boot from.
+
+Possible devices:
+
+HDD / SSD
+USB
+CD/DVD
+Network/PXE
+Legacy BIOS
+
+Typically:
+
+BIOS
+ ↓
+MBR
+ ↓
+Bootloader
+UEFI
+
+Typically:
+
+UEFI
+ ↓
+EFI System Partition (ESP)
+ ↓
+GRUB EFI executable
+
+Check disks and partitions:
+
+lsblk
+
+Check filesystem information:
+
+lsblk -f
+
+Check partition table:
+
+fdisk -l
+4. GRUB Bootloader
+
+GRUB stands for:
+
+GRand Unified Bootloader
+
+On most RHEL-based Linux systems, GRUB2 is used.
+
+GRUB's responsibilities include:
+
+Displaying the boot menu
+Selecting the kernel
+Passing kernel parameters
+Loading the Linux kernel
+Loading the initramfs
+
+Typical GRUB configuration:
+
+/boot/grub2/grub.cfg
+
+On UEFI systems, the EFI-related files are commonly under:
+
+/boot/efi/
+
+Check installed kernels:
+
+ls -lh /boot/vmlinuz*
+
+Check initramfs:
+
+ls -lh /boot/initramfs*
+5. Linux Kernel
+
+GRUB loads the Linux kernel into memory.
+
+Typical kernel:
+
+/boot/vmlinuz-<version>
+
+The kernel then:
+
+Initializes CPU
+Initializes memory management
+Initializes device drivers
+Detects hardware
+Initializes kernel subsystems
+Prepares the system for userspace
+
+The kernel is the core of the Linux operating system.
+
+6. initramfs
+
+Before the real root filesystem can be mounted, Linux may need additional drivers and tools.
+
+This is where initramfs comes in.
+
+Typical file:
+
+/boot/initramfs-<version>.img
+
+It provides a temporary early userspace containing things such as:
+
+Storage drivers
+Filesystem drivers
+LVM tools
+RAID support
+Multipath tools
+Network/storage initialization components
+
+This is particularly important in enterprise environments where the root filesystem may be located on:
+
+LVM
+SAN
+Multipath storage
+RAID
+Encrypted storage
+7. systemd — PID 1
+
+After the kernel finishes its initial initialization, it starts the first userspace process.
+
+On modern RHEL/AlmaLinux systems:
+
+systemd
+
+Systemd normally runs as:
+
+PID 1
+
+Check it:
+
+ps -p 1 -f
+
+Example:
+
+UID    PID  PPID  CMD
+root     1     0  /usr/lib/systemd/systemd
+
+You can also use:
+
+systemctl status
+8. systemd Targets
+
+Systemd uses targets to define system states.
+
+Common targets:
+
+poweroff.target
+rescue.target
+multi-user.target
+graphical.target
+reboot.target
+
+For a server, the commonly used target is:
+
+multi-user.target
+
+For a desktop system:
+
+graphical.target
+
+Check the default target:
+
+systemctl get-default
+
+Example:
+
+multi-user.target
+
+Change default target:
+
+systemctl set-default multi-user.target
+
+or:
+
+systemctl set-default graphical.target
+9. Services Start
+
+systemd starts required services based on dependencies and the selected target.
+
+Examples:
+
+sshd
+NetworkManager
+chronyd
+firewalld
+rsyslog
+auditd
+
+Check running services:
+
+systemctl --type=service
+
+Check a specific service:
+
+systemctl status sshd
+
+Check failed services:
+
+systemctl --failed
+
+This is an important command during production boot troubleshooting.
+
+10. Login Prompt
+
+After required services and targets are started, the system provides a login interface.
+
+For a server you may see:
+
+localhost login:
+
+Then you can connect through:
+
+SSH
+Console
+iLO / iDRAC
+VM Console
+
+For example:
+
+ssh user@server
+Complete Boot Process
+
+The complete flow can be remembered as:
+
+Power ON
+   ↓
+BIOS / UEFI
+   ↓
+POST
+   ↓
+Select Boot Device
+   ↓
+MBR / EFI System Partition
+   ↓
+GRUB2
+   ↓
+Linux Kernel
+   ↓
+initramfs
+   ↓
+Mount Root Filesystem
+   ↓
+systemd (PID 1)
+   ↓
+systemd Targets
+   ↓
+Start Services
+   ↓
+Network / SSH / Applications
+   ↓
+Login Prompt
+Important Commands for Boot Troubleshooting
+Check current kernel
+uname -r
+Check boot messages
+dmesg
+
+Better for the current boot:
+
+journalctl -b
+Check previous boot
+journalctl -b -1
+Check boot time
+systemd-analyze
+
+Example:
+
+Startup finished in 8.2s (kernel) + 15.4s (userspace)
+Find services causing boot delay
+systemd-analyze blame
+Check dependency chain
+systemd-analyze critical-chain
+Check failed services
+systemctl --failed
+Check default target
+systemctl get-default
+Check GRUB configuration
+grep -v '^#' /etc/default/grub
+Production Troubleshooting Flow
+
+If a Linux server does not boot:
+
+             Server Not Booting
+                    │
+                    ▼
+              Check Console
+                    │
+          ┌─────────┴─────────┐
+          ▼                   ▼
+      BIOS/UEFI OK?       Hardware Error?
+          │                   │
+          ▼                   ▼
+     Check Boot Device    Check Hardware
+          │
+          ▼
+        GRUB?
+          │
+          ▼
+     Kernel Loading?
+          │
+          ▼
+       initramfs?
+          │
+          ▼
+    Root Filesystem?
+          │
+          ▼
+      systemd PID 1?
+          │
+          ▼
+    Failed Services?
+          │
+          ▼
+       Login/SSH
+
+Useful commands after recovery:
+
+journalctl -b
+journalctl -p err
+systemctl --failed
+dmesg -T
+systemd-analyze
+systemd-analyze blame
+RHEL / AlmaLinux Boot Files
+Component	Important Location
+Kernel	/boot/vmlinuz-*
+initramfs	/boot/initramfs-*
+GRUB config	/boot/grub2/grub.cfg
+UEFI files	/boot/efi/
+systemd units	/usr/lib/systemd/system/
+Local systemd units	/etc/systemd/system/
+Kernel parameters	/etc/default/grub
+Boot logs	journalctl
+GitHub Quick Revision
+BIOS/UEFI
+    ↓
+POST
+    ↓
+Boot Device
+    ↓
+GRUB
+    ↓
+Kernel + initramfs
+    ↓
+Root Filesystem
+    ↓
+systemd (PID 1)
+    ↓
+Target
+    ↓
+Services
+    ↓
+Login
