@@ -1,0 +1,46 @@
+When troubleshooting a Linux system, your diagnostic strategy should target specific subsystems: CPU, Memory, Storage/IO, and Network.
+The most effective commands for performance monitoring and troubleshooting on Linux are categorized below by their primary function:
+1. Central Resource Dashboards
+These commands give you a quick, birds-eye view of how the entire system is performing.
+• uptime: Shows how long the system has been running, active users, and load averages over the last 1, 5, and 15 minutes.
+• top: The classic real-time process viewer.
+	• Tip: Press Shift + P to sort by CPU usage, or Shift + M to sort by Memory.
+• htop: A modern, interactive version of top featuring color-coded visual bars, process trees (F5), and quick process-killing (F9).
+2. CPU & Process Monitoring
+Use these when applications seem sluggish or are locking up the machine.
+• ps aux: Captures a snapshot of all running processes, displaying details like Process ID (PID), user, %CPU, and %Memory.
+	• Example: ps aux | grep nginx (Finds a specific service's process details).
+• mpstat -P ALL 1: Breaks down CPU utilization per individual core every 1 second. Essential for spotting asymmetric loads.
+• kill -9 <PID>: Forcefully terminates a rogue, un-killable process.
+3. Memory Diagnostics
+If you suspect memory leaks or the system is aggressively swapping, start here.
+• free -h: Displays total, used, and available RAM and Swap memory in human-readable sizes (GB/MB).
+• vmstat 1: Provides continuous summaries of virtual memory, paging, and CPU activity.
+	• Look at: The si (swap in) and so (swap out) columns. High numbers mean the server is running out of physical RAM.
+4. Storage & Disk I/O
+High storage input/output can cripple application speeds, even if the CPU is mostly idle.
+• df -h: Shows total capacity and available disk space across all mounted filesystems.
+• du -sh /* | sort -h: Calculates and lists the total disk usage of files and folders, sorted by size. Great for finding hidden log files eating up space.
+• iostat -xz 1: Generates extended reports for disk read/write throughput.
+	• Look at: The %util column. If a disk is at 100%, it is saturated.
+• iotop -o: Operates like top, but displays a real-time list of processes actively writing/reading to disk.
+5. Network Troubleshooting
+When services can’t connect internally or are failing to reach the open internet.
+• ss -tunapl: Replaces the legacy netstat command. It lists all active TCP/UDP connections and reveals what ports are listening and which processes own them.
+• ip a / ip route: Identifies your network interface configurations, IP addresses, and routing tables.
+• ping <host>: Confirms basic point-to-point network connectivity and latency.
+• traceroute <host>: Maps out every hop a packet takes to a destination, isolating where a connection breaks.
+• tcpdump -i eth0: Captures and inspects raw network packets flowing through an interface.
+6. System & Application Logs
+When the hardware is fine but a service refuses to start.
+• journalctl -xe: Fetches recent systemd service manager logs, appending structural errors at the bottom.
+• journalctl -u <service_name> -f: Follows and streams logs for a specific service (e.g., nginx or docker) in real time.
+• dmesg -T: Reads the kernel ring buffer to reveal hardware failures, drive disconnections, or Out-Of-Memory (OOM) kills.
+• strace -p <PID>: Hooks onto a running process to trace its system calls, showing you exactly what system file it's failing to open.
+Command Cheat Sheet Matrix
+Symptom	Primary Command	Secondary Deep Dive
+System is generally slow	top or htop	uptime
+Out of Memory errors	free -h	vmstat 1
+Slow database or file access	iostat -xz 1	iotop -o
+"Disk full" errors	df -h	du -sh /* | sort -h
+Application port unreachable	ss -tunapl	tcpdump
